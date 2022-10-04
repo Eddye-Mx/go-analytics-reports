@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	gaRep "google.golang.org/api/analyticsreporting/v4"
 	"google.golang.org/api/option"
 )
@@ -15,26 +17,27 @@ func main() {
 	config := oauth2.Config{
 		ClientID:     os.Getenv("CLIENT_ID"),
 		ClientSecret: os.Getenv("CLIENT_SECRET"),
+		Endpoint:     google.Endpoint,
+		// RedirectURL:  "https://developers.google.com/oauthplayground",
 	}
 
 	token := &oauth2.Token{
 		AccessToken:  os.Getenv("ACCESS_TOKEN"),
 		RefreshToken: os.Getenv("REFRESH_TOKEN"),
+		Expiry:       time.Now(),
 	}
 
 	ctx := context.Background()
 	gaService, err := gaRep.NewService(ctx, option.WithTokenSource(config.TokenSource(ctx, token)))
 
-	if err !=nil {
+	if err != nil {
 		fmt.Println("error creating service:", err)
 	}
 
 	report, err := getReport(gaService)
-	
-	if (err !=nil) {
+	if err != nil {
 		fmt.Println("error creating report:", err)
 	}
-	fmt.Println("REPORT", report)
 
 	printResponse(report)
 
@@ -50,15 +53,28 @@ func getReport(svc *gaRep.Service) (*gaRep.GetReportsResponse, error) {
 				ViewId: "261593436",
 				DateRanges: []*gaRep.DateRange{
 					// Create the DateRange object.
-					{StartDate: "7daysAgo", EndDate: "today"},
+					{StartDate: "2022-09-01", EndDate: "today"},
 				},
 				Metrics: []*gaRep.Metric{
 					// Create the Metrics object.
-					{Expression: "ga:users"},
-					{Expression: "ga:sessions"},
+					{Expression: "ga:users", Alias: "Users"},
+					{Expression: "ga:sessions", Alias: "Sessions"},
+					{Expression: "ga:transactions", Alias: "Transactions"},
+					{Expression: "ga:transactionRevenue", Alias: "Revenue"},
+				},
+				MetricFilterClauses: []*gaRep.MetricFilterClause{
+					{
+						Filters: []*gaRep.MetricFilter{{
+							MetricName:      "ga:transactions",
+							Operator:        "GREATER_THAN",
+							ComparisonValue: "20",
+						},
+						},
+					},
 				},
 				Dimensions: []*gaRep.Dimension{
 					{Name: "ga:country"},
+					{Name: "ga:city"},
 				},
 			},
 		},
@@ -78,26 +94,35 @@ func printResponse(res *gaRep.GetReportsResponse) {
 			fmt.Println("No data found for given view.")
 		}
 
+		for i := 0; i < len(dimHdrs); i++ {
+			fmt.Printf(" %s ", dimHdrs[i])
+		}
+
+		for j := 0; j < len(metricHdrs); j++ {
+			fmt.Printf(" %s ", metricHdrs[j].Name)
+		}
+		fmt.Println()
+
 		for _, row := range rows {
 			dims := row.Dimensions
 			metrics := row.Metrics
 
-			for i := 0; i < len(dimHdrs) && i < len(dims); i++ {
-				fmt.Printf("%s: %s", dimHdrs[i], dims[i])
-				
+			for i := 0; i < len(dims); i++ {
+				fmt.Printf(" %s ", dims[i])
+
 			}
 
 			for _, metric := range metrics {
 				// We have only 1 date range in the example
 				// So it'll always print "Date Range (0)"
 				// log.Infof("Date Range (%d)", idx)
-				for j := 0; j < len(metricHdrs) && j < len(metric.Values); j++ {
-					 fmt.Printf(" %s: %s ", metricHdrs[j].Name, metric.Values[j])
+				for j := 0; j < len(metric.Values); j++ {
+					fmt.Printf(" %s ", metric.Values[j])
 				}
 			}
 
 			fmt.Println("")
 		}
 	}
-	
+
 }

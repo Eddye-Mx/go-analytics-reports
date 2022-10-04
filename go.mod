@@ -1,6 +1,6 @@
 module github.com/epa-datos/analytics-api
 
-go 1.19
+go 1.18
 
 require (
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1
